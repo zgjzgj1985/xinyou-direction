@@ -110,7 +110,7 @@ async function generateAIResponse(messages) {
 /** 发送当前文档 */
 async function sendCurrentDoc() {
   const doc = getCurrentDocument();
-  if (!doc) return;
+  if (!doc) { showToast('请先打开一个文档'); return; }
 
   const intro = `请阅读以下文档内容，然后等待我的进一步提问。\n\n文档：「${doc.title}」`;
   chatHistory.push({ role: 'user', content: intro });
@@ -122,7 +122,7 @@ async function sendCurrentDoc() {
 /** 生成标签 */
 async function generateTags() {
   const doc = getCurrentDocument();
-  if (!doc) return;
+  if (!doc) { showToast('请先打开一个文档'); return; }
 
   const systemPrompt = `你是一个游戏设计文档标签生成专家。请分析以下文档，提取最核心的标签。
 
@@ -188,7 +188,7 @@ async function generateTags() {
 /** 总结全文 */
 async function summarizeDoc() {
   const doc = getCurrentDocument();
-  if (!doc) return;
+  if (!doc) { showToast('请先打开一个文档'); return; }
 
   const tempHistory = [
     { role: 'system', content: '你是一个游戏设计文档分析助手，擅长提炼关键信息。用简洁的要点形式呈现核心内容。' },
@@ -224,7 +224,7 @@ async function summarizeDoc() {
 /** 分析文档（数值平衡 / 设计建议等） */
 async function analyzeDoc() {
   const doc = getCurrentDocument();
-  if (!doc) return;
+  if (!doc) { showToast('请先打开一个文档'); return; }
 
   const tempHistory = [
     { role: 'system', content: '你是一个资深游戏数值策划，专注于回合制游戏的战斗系统设计。善于从专业角度分析数值平衡、战斗机制设计，并给出改进建议。' },
