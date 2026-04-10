@@ -1,11 +1,11 @@
 /**
  * AI 对话面板
- * — 与当前文档关联，支持快捷操作和一键插入文档
+ * — 与当前文档关联，支持快捷操作和一键插入文档，流式输出
  */
 import { supabase } from './supabase.js';
 
 // ── 常量 ─────────────────────────────────────────────────────────────────────
-const API_BASE = '';   // 部署在同一域名下，使用相对路径
+const API_BASE = '';
 const API_URL  = '/api/ai-chat';
 
 const MODEL_LABELS = {
@@ -21,7 +21,7 @@ const MODEL_LABELS = {
 let chatHistory = [];           // 当前会话历史
 let isGenerating = false;      // 是否正在生成
 let isAIPanelOpen = false;     // 移动端面板是否打开
-let modelKey = 'gpt-4o-mini'; // 当前模型（从 .env 读，实际用常量）
+let modelKey = 'gpt-4o-mini'; // 当前模型
 
 // ── 引导 ─────────────────────────────────────────────────────────────────────
 export function initAIPanel() {
@@ -40,6 +40,7 @@ function bindEvents() {
   document.getElementById('aiAnalyze')?.addEventListener('click', analyzeDoc);
   document.getElementById('aiPanelClose')?.addEventListener('click', closeAIPanel);
   document.getElementById('aiPanelOpenBtn')?.addEventListener('click', openAIPanel);
+  document.getElementById('aiStopBtn')?.addEventListener('click', stopGenerating);
 }
 
 // ── 发送消息 ─────────────────────────────────────────────────────────────────
@@ -54,9 +55,8 @@ async function sendMessage() {
   chatHistory.push({ role: 'user', content: text });
   renderMessages();
 
-  // 添加"正在输入"动画
   showTyping();
-  await generateAIResponse(chatHistory);
+  await generateAIStream(chatHistory);
 }
 
 function handleInputKey(e) {
@@ -66,47 +66,155 @@ function handleInputKey(e) {
   }
 }
 
-// ── 调用 AI 中转接口 ───────────────────────────────────────────────────────────
-async function generateAIResponse(messages) {
-  isGenerating = true;
-  setQuickBtnsDisabled(true);
+// ── 流式调用 AI ─────────────────────────────────────────────────────────────
+let _abortController = null;
 
-  const doc = getCurrentDocument();
-  const docContent = doc?.content || '';
-  const docTitle   = doc?.title   || '';
+async function generateAIStream(messages, opts = {}) {
+  const { docTitle = '', docContent = '', onDone } = opts;
+  isGenerating = true;
+  _abortController = new AbortController();
+  setQuickBtnsDisabled(true);
+  updateStopBtn(true);
+
+  // 建立消息占位
+  let msgDiv = null;
+  let msgText = '';
+  let msgPending = true; // 是否还在等待内容
+
+  function ensureMsgDiv() {
+    if (!msgDiv) {
+      msgDiv = addAssistantMessage('');
+      msgPending = true;
+    }
+  }
+
+  function flushMsg() {
+    if (msgDiv) {
+      msgDiv.innerHTML = parseAIResponse(msgText);
+      scrollToBottom();
+    }
+  }
 
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, docTitle, docContent }),
+      signal: _abortController.signal,
     });
 
-    const data = await res.json();
-
-    removeTyping();
-
-    if (data.error) {
-      addAssistantMessage('请求失败：' + data.error);
+    if (!res.ok) {
+      removeTyping();
+      ensureMsgDiv();
+      msgDiv.innerHTML = parseAIResponse(`请求失败（${res.status}），请稍后重试。`);
+      chatHistory.push({ role: 'assistant', content: msgText });
       return;
     }
 
-    chatHistory.push({ role: 'assistant', content: data.reply });
-    renderMessages();
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
 
-    // 在最后一条 AI 回复后追加插入按钮
-    setTimeout(() => appendInsertBtns(), 100);
+    removeTyping();
+    ensureMsgDiv();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const raw of lines) {
+        if (!raw.startsWith('data: ')) continue;
+        const data = raw.slice(6).trim();
+        if (!data) continue;
+
+        // SSE event 格式: event: xxx\ndata: {...}\n\n
+        // 简单兼容：如果有换行说明是 event+data 混在一起
+        let event = 'message';
+        let jsonStr = data;
+        if (data.includes('\n')) {
+          const parts = data.split('\n');
+          for (let i = 0; i < parts.length; i++) {
+            const p = parts[i].trim();
+            if (!p) continue;
+            if (p.startsWith('event:')) {
+              event = p.slice(6).trim();
+            } else if (p.startsWith('data:')) {
+              jsonStr = p.slice(5).trim();
+            } else {
+              jsonStr = p;
+            }
+          }
+        }
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+
+          if (event === 'error') {
+            ensureMsgDiv();
+            msgDiv.innerHTML = parseAIResponse('错误：' + (parsed.error || '未知错误'));
+            return;
+          }
+
+          if (event === 'done') {
+            msgPending = false;
+            chatHistory.push({ role: 'assistant', content: msgText });
+            onDone?.();
+            setTimeout(() => appendInsertBtns(), 100);
+            return;
+          }
+
+          if (parsed.delta) {
+            msgText += parsed.delta;
+            msgPending = true;
+            flushMsg();
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+
+    // 意外结束
+    if (msgPending) {
+      chatHistory.push({ role: 'assistant', content: msgText });
+    }
 
   } catch (err) {
     removeTyping();
-    addAssistantMessage('网络错误：' + err.message);
+    if (err.name === 'AbortError') {
+      // 用户主动取消
+      if (msgText) {
+        chatHistory.push({ role: 'assistant', content: msgText });
+      }
+    } else {
+      ensureMsgDiv();
+      msgDiv.innerHTML = parseAIResponse('网络错误：' + err.message);
+      if (msgText) chatHistory.push({ role: 'assistant', content: msgText });
+    }
   } finally {
     isGenerating = false;
+    _abortController = null;
     setQuickBtnsDisabled(false);
+    updateStopBtn(false);
   }
 }
 
-// ── 快捷操作 ─────────────────────────────────────────────────────────────────
+// 停止生成
+function stopGenerating() {
+  _abortController?.abort();
+}
+
+// 更新停止按钮可见性
+function updateStopBtn(show) {
+  const btn = document.getElementById('aiStopBtn');
+  if (btn) btn.style.display = show ? 'inline-flex' : 'none';
+}
+
+// ── 快捷操作（统一用流式）──────────────────────────────────────────────────
 
 /** 发送当前文档 */
 async function sendCurrentDoc() {
@@ -116,8 +224,9 @@ async function sendCurrentDoc() {
   const intro = `请阅读以下文档内容，然后等待我的进一步提问。\n\n文档：「${doc.title}」\n\n${doc.content}`;
   chatHistory.push({ role: 'user', content: intro });
   renderMessages();
+
   showTyping();
-  await generateAIResponse(chatHistory);
+  await generateAIStream(chatHistory, { docTitle: doc.title, docContent: doc.content });
 }
 
 /** 生成标签 */
@@ -142,48 +251,121 @@ async function generateTags() {
   ];
 
   isGenerating = true;
+  _abortController = new AbortController();
   setQuickBtnsDisabled(true);
+  updateStopBtn(true);
   showTyping();
+
+  let msgDiv = null;
+  let msgText = '';
+  let tagsResult = '';
 
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: tempHistory, docTitle: doc.title, docContent: '' }),
+      signal: _abortController.signal,
     });
-    const data = await res.json();
+
     removeTyping();
 
-    if (data.reply) {
-      // 智能追加标签
-      addAssistantMessage('推荐标签：' + data.reply);
-      setTimeout(() => {
-        const lastMsg = document.querySelector('.ai-msg:last-child');
-        const wrap = document.createElement('div');
-        wrap.className = 'ai-insert-wrap';
-
-        const insertBtn = document.createElement('button');
-        insertBtn.className = 'ai-insert-btn';
-        insertBtn.textContent = '📎 追加到文档';
-        insertBtn.addEventListener('click', () => insertTagsToDoc(data.reply));
-        wrap.appendChild(insertBtn);
-
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'ai-insert-btn';
-        copyBtn.textContent = '📋 复制';
-        copyBtn.addEventListener('click', () => navigator.clipboard.writeText(data.reply));
-        wrap.appendChild(copyBtn);
-
-        lastMsg?.appendChild(wrap);
-      }, 100);
+    if (!res.ok) {
+      addAssistantMessage(`标签生成失败（${res.status}），请稍后重试。`);
+      return;
     }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    msgDiv = addAssistantMessage('');
+    scrollToBottom();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const raw of lines) {
+        if (!raw.startsWith('data: ')) continue;
+        const data = raw.slice(6).trim();
+        if (!data) continue;
+
+        let event = 'message';
+        let jsonStr = data;
+        if (data.includes('\n')) {
+          const parts = data.split('\n');
+          for (const p of parts) {
+            const trimmed = p.trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
+            else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
+            else jsonStr = trimmed;
+          }
+        }
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (event === 'done') {
+            tagsResult = msgText;
+            renderTagsResult(msgDiv, tagsResult);
+            return;
+          }
+          if (parsed.delta) {
+            msgText += parsed.delta;
+            msgDiv.innerHTML = parseAIResponse('推荐标签：' + msgText);
+            scrollToBottom();
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    tagsResult = msgText;
+    renderTagsResult(msgDiv, tagsResult);
+
   } catch (err) {
     removeTyping();
-    addAssistantMessage('标签生成失败：' + err.message);
+    if (err.name !== 'AbortError') {
+      addAssistantMessage('标签生成失败：' + err.message);
+    } else if (msgText) {
+      chatHistory.push({ role: 'assistant', content: msgText });
+    }
   } finally {
     isGenerating = false;
+    _abortController = null;
     setQuickBtnsDisabled(false);
+    updateStopBtn(false);
   }
+}
+
+function renderTagsResult(msgDiv, tagsText) {
+  if (!msgDiv || !tagsText) return;
+  msgDiv.innerHTML = parseAIResponse('推荐标签：' + tagsText);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ai-insert-wrap';
+
+  const insertBtn = document.createElement('button');
+  insertBtn.className = 'ai-insert-btn';
+  insertBtn.textContent = '📎 追加到文档';
+  insertBtn.addEventListener('click', () => insertTagsToDoc(tagsText));
+  wrap.appendChild(insertBtn);
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'ai-insert-btn';
+  copyBtn.textContent = '📋 复制';
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(tagsText);
+    showToast('已复制到剪贴板');
+  });
+  wrap.appendChild(copyBtn);
+
+  msgDiv.appendChild(wrap);
+  scrollToBottom();
 }
 
 /** 总结全文 */
@@ -197,28 +379,91 @@ async function summarizeDoc() {
   ];
 
   isGenerating = true;
+  _abortController = new AbortController();
   setQuickBtnsDisabled(true);
+  updateStopBtn(true);
   showTyping();
+
+  let msgText = '';
 
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: tempHistory, docTitle: doc.title, docContent: '' }),
+      signal: _abortController.signal,
     });
-    const data = await res.json();
+
     removeTyping();
 
-    if (data.reply) {
-      addAssistantMessage(data.reply);
-      setTimeout(() => appendInsertBtns(), 100);
+    if (!res.ok) {
+      addAssistantMessage(`总结失败（${res.status}），请稍后重试。`);
+      return;
     }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const msgDiv = addAssistantMessage('');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const raw of lines) {
+        if (!raw.startsWith('data: ')) continue;
+        const data = raw.slice(6).trim();
+        if (!data) continue;
+
+        let event = 'message';
+        let jsonStr = data;
+        if (data.includes('\n')) {
+          const parts = data.split('\n');
+          for (const p of parts) {
+            const trimmed = p.trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
+            else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
+            else jsonStr = trimmed;
+          }
+        }
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (event === 'done') {
+            chatHistory.push({ role: 'assistant', content: msgText });
+            setTimeout(() => appendInsertBtns(), 100);
+            return;
+          }
+          if (parsed.delta) {
+            msgText += parsed.delta;
+            msgDiv.innerHTML = parseAIResponse(msgText);
+            scrollToBottom();
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    chatHistory.push({ role: 'assistant', content: msgText });
+    setTimeout(() => appendInsertBtns(), 100);
+
   } catch (err) {
     removeTyping();
-    addAssistantMessage('总结失败：' + err.message);
+    if (err.name !== 'AbortError') {
+      addAssistantMessage('总结失败：' + err.message);
+    } else if (msgText) {
+      chatHistory.push({ role: 'assistant', content: msgText });
+    }
   } finally {
     isGenerating = false;
+    _abortController = null;
     setQuickBtnsDisabled(false);
+    updateStopBtn(false);
   }
 }
 
@@ -233,28 +478,91 @@ async function analyzeDoc() {
   ];
 
   isGenerating = true;
+  _abortController = new AbortController();
   setQuickBtnsDisabled(true);
+  updateStopBtn(true);
   showTyping();
+
+  let msgText = '';
 
   try {
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: tempHistory, docTitle: doc.title, docContent: '' }),
+      signal: _abortController.signal,
     });
-    const data = await res.json();
+
     removeTyping();
 
-    if (data.reply) {
-      addAssistantMessage(data.reply);
-      setTimeout(() => appendInsertBtns(), 100);
+    if (!res.ok) {
+      addAssistantMessage(`分析失败（${res.status}），请稍后重试。`);
+      return;
     }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const msgDiv = addAssistantMessage('');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const raw of lines) {
+        if (!raw.startsWith('data: ')) continue;
+        const data = raw.slice(6).trim();
+        if (!data) continue;
+
+        let event = 'message';
+        let jsonStr = data;
+        if (data.includes('\n')) {
+          const parts = data.split('\n');
+          for (const p of parts) {
+            const trimmed = p.trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
+            else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
+            else jsonStr = trimmed;
+          }
+        }
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (event === 'done') {
+            chatHistory.push({ role: 'assistant', content: msgText });
+            setTimeout(() => appendInsertBtns(), 100);
+            return;
+          }
+          if (parsed.delta) {
+            msgText += parsed.delta;
+            msgDiv.innerHTML = parseAIResponse(msgText);
+            scrollToBottom();
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    chatHistory.push({ role: 'assistant', content: msgText });
+    setTimeout(() => appendInsertBtns(), 100);
+
   } catch (err) {
     removeTyping();
-    addAssistantMessage('分析失败：' + err.message);
+    if (err.name !== 'AbortError') {
+      addAssistantMessage('分析失败：' + err.message);
+    } else if (msgText) {
+      chatHistory.push({ role: 'assistant', content: msgText });
+    }
   } finally {
     isGenerating = false;
+    _abortController = null;
     setQuickBtnsDisabled(false);
+    updateStopBtn(false);
   }
 }
 
@@ -282,12 +590,10 @@ function appendToCurrentDoc(text) {
     const ta = document.getElementById('fallbackEditor');
     if (ta) ta.value += text;
   }
-  // 如果在预览模式，追加到数据库（自动保存）
   scheduleAutoSave(text);
 }
 
 function scheduleAutoSave(extraText) {
-  // 通知 main.js 执行保存（通过自定义事件）
   window.dispatchEvent(new CustomEvent('ai-content-append', { detail: { text: extraText } }));
 }
 
@@ -426,22 +732,14 @@ function escapeHtml(str) {
 }
 
 function parseAIResponse(html) {
-  // 简单的消息格式化：处理 **加粗**、- 列表、```代码块```
   let h = escapeHtml(html);
-
-  // 代码块
   h = h.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-  // 行内代码
   h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // 加粗
   h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // 列表项
   h = h.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
   h = h.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-  // 段落
   h = h.replace(/^(?!<[huplo]|<pre|<code|<ul|<ol|<strong)(.+)$/gm, '<p>$1</p>');
   h = h.replace(/<p>\s*<\/p>/g, '');
-
   return h;
 }
 
@@ -459,7 +757,6 @@ function showToast(msg) {
 }
 
 function getMsgPureText(msgEl) {
-  // 只取消息正文，不含插入按钮区域的文字
   const wrap = msgEl.querySelector('.ai-insert-wrap');
   let text = msgEl.textContent || '';
   if (wrap) {
@@ -468,5 +765,5 @@ function getMsgPureText(msgEl) {
   return text;
 }
 
-// 导出 API URL（其他模块可能需要）
+// 导出
 export { API_URL };

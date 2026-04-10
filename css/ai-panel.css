@@ -365,6 +365,32 @@
   cursor: not-allowed;
 }
 
+.ai-stop-btn {
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--ios-red);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.ai-stop-btn:hover {
+  background: #e6352b;
+}
+
+.ai-stop-btn:active {
+  transform: scale(0.94);
+}
+
 /* ── Toast（复用已有样式，此处仅作补充）── */
 .ai-toast {
   background: #1c1c1e;
