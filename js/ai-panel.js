@@ -365,7 +365,7 @@ function appendInsertBtns() {
   insertBtn.className = 'ai-insert-btn';
   insertBtn.textContent = '📎 插入到文档末尾';
   insertBtn.addEventListener('click', () => {
-    const content = lastMsg.textContent || '';
+    const content = getMsgPureText(lastMsg);
     insertToDocEnd(content);
   });
   wrap.appendChild(insertBtn);
@@ -374,7 +374,7 @@ function appendInsertBtns() {
   copyBtn.className = 'ai-insert-btn';
   copyBtn.textContent = '📋 复制全部';
   copyBtn.addEventListener('click', () => {
-    const content = lastMsg.textContent || '';
+    const content = getMsgPureText(lastMsg);
     navigator.clipboard.writeText(content);
     showToast('已复制到剪贴板');
   });
@@ -456,6 +456,16 @@ function showToast(msg) {
     t.classList.remove('toast-visible');
     setTimeout(() => t.remove(), 300);
   }, 2000);
+}
+
+function getMsgPureText(msgEl) {
+  // 只取消息正文，不含插入按钮区域的文字
+  const wrap = msgEl.querySelector('.ai-insert-wrap');
+  let text = msgEl.textContent || '';
+  if (wrap) {
+    text = text.replace(wrap.textContent || '', '').trim();
+  }
+  return text;
 }
 
 // 导出 API URL（其他模块可能需要）
