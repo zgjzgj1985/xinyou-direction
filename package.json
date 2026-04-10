@@ -1,0 +1,20 @@
+{
+  "name": "xinyou-direction",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build:editor": "esbuild js/cm-editor.mjs --bundle --format=esm --outfile=js/cm-editor.bundle.mjs --platform=browser"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.41.0",
+    "@lezer/highlight": "^1.2.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

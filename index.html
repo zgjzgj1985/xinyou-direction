@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新游方向探索</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <h1>新游方向探索</h1>
+            <p>回合制游戏战斗系统设计研究</p>
+        </div>
+    </header>
+
+    <main class="layout" id="mainLayout">
+        <div class="nav-overlay" id="navOverlay" aria-hidden="true"></div>
+
+        <aside class="side-nav" id="sideNav" aria-label="文档目录">
+            <div class="side-nav-inner">
+                <div class="side-nav-head">
+                    <span class="side-nav-title">文档目录</span>
+                    <span class="side-nav-count" id="sideNavCount"></span>
+                </div>
+                <input type="search" id="docFilter" class="doc-filter" placeholder="筛选文档" autocomplete="off" spellcheck="false">
+                <nav class="side-nav-list" id="sideNavList"></nav>
+            </div>
+        </aside>
+
+        <div class="content-wrap">
+            <button type="button" class="drawer-open-btn" id="drawerOpenBtn">文档目录</button>
+            <section class="content-area" id="contentArea"></section>
+        </div>
+    </main>
+
+    <footer class="footer">
+        新游方向探索 · J / K 键切换文档
+    </footer>
+
+    <script src="js/main.js" type="module"></script>
+</body>
+</html>
