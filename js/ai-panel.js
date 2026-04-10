@@ -113,7 +113,7 @@ async function sendCurrentDoc() {
   const doc = getCurrentDocument();
   if (!doc) { showToast('请先打开一个文档'); return; }
 
-  const intro = `请阅读以下文档内容，然后等待我的进一步提问。\n\n文档：「${doc.title}」`;
+  const intro = `请阅读以下文档内容，然后等待我的进一步提问。\n\n文档：「${doc.title}」\n\n${doc.content}`;
   chatHistory.push({ role: 'user', content: intro });
   renderMessages();
   showTyping();
