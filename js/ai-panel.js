@@ -353,8 +353,8 @@ async function summarizeDoc() {
   if (!doc) { showToast('请先打开一个文档'); return; }
 
   const tempHistory = [
-    { role: 'system', content: '你是一个游戏设计文档分析助手，擅长提炼关键信息。用简洁的要点形式呈现核心内容。' },
-    { role: 'user', content: `请总结以下文档的核心内容，用 5-8 个简洁要点呈现。\n\n文档：「${doc.title}」\n\n${doc.content.slice(0, 3000)}` }
+    { role: 'system', content: '你是一个游戏设计文档分析助手，擅长提炼关键信息。请详细展开分析，每个要点都给出具体解释和说明。' },
+    { role: 'user', content: `请详细总结以下文档的核心内容，包括：核心玩法、主要机制、设计亮点、潜在问题等。请展开说明，不要只列要点。\n\n文档：「${doc.title}」\n\n${doc.content.slice(0, 3000)}` }
   ];
 
   isGenerating = true;
@@ -450,8 +450,8 @@ async function analyzeDoc() {
   if (!doc) { showToast('请先打开一个文档'); return; }
 
   const tempHistory = [
-    { role: 'system', content: '你是一个资深游戏数值策划，专注于回合制游戏的战斗系统设计。善于从专业角度分析数值平衡、战斗机制设计，并给出改进建议。' },
-    { role: 'user', content: `请从以下角度分析这份游戏设计文档，并给出专业意见：\n1. 数值平衡是否合理\n2. 战斗机制是否有改进空间\n3. 有哪些设计亮点\n4. 可能存在的平衡风险\n\n文档：「${doc.title}」\n\n${doc.content.slice(0, 3000)}` }
+    { role: 'system', content: '你是一个资深游戏数值策划，专注于回合制游戏的战斗系统设计。善于从专业角度分析数值平衡、战斗机制设计，并给出详细改进建议。请深入展开，不要简略。' },
+    { role: 'user', content: `请详细分析这份游戏设计文档，从以下角度给出专业意见，每个角度都要详细展开说明：\n1. 数值平衡是否合理，举例说明\n2. 战斗机制是否有改进空间，具体建议\n3. 有哪些设计亮点\n4. 可能存在的平衡风险\n5. 其他值得关注的设计问题\n\n文档：「${doc.title}」\n\n${doc.content.slice(0, 3000)}` }
   ];
 
   isGenerating = true;

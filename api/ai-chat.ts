@@ -42,6 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         model: modelId,
         messages,
         stream: true,
+        max_tokens: 2048,
       }),
     });
 
