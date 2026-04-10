@@ -1,17 +1,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-// OpenRouter API 配置
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const LLM_API_KEY = process.env.LLM_API_KEY || '';
+const LLM_API_URL = process.env.LLM_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
 
-// 模型映射（前端传入 key → OpenRouter 模型名）
-const MODEL_MAP: Record<string, string> = {
-  'gpt-4o-mini': 'openai/gpt-4o-mini',
-  'gpt-4o':      'openai/gpt-4o',
-  'claude-3.5-sonnet': 'anthropic/claude-3.5-sonnet',
-  'gemini-1.5-flash': 'google/gemini-1.5-flash',
-  '豆包-pro':      'doubao/pro',
-};
+// 中转 API 配置
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 仅允许 POST
@@ -20,23 +12,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // 检查 API Key
-  if (!OPENROUTER_API_KEY) {
-    return res.status(500).json({ error: '未配置 OPENROUTER_API_KEY 环境变量' });
+  if (!LLM_API_KEY) {
+    return res.status(500).json({ error: '未配置 LLM_API_KEY 环境变量' });
   }
 
-  const { messages, modelKey = 'gpt-4o-mini' } = req.body;
+  const { messages } = req.body;
+  const modelId = process.env.LLM_MODEL || '';
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages 格式错误' });
   }
 
-  const modelId = MODEL_MAP[modelKey] || MODEL_MAP['gpt-4o-mini'];
-
   try {
-    const response = await fetch(OPENROUTER_API_URL, {
+    const response = await fetch(LLM_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Authorization': `Bearer ${LLM_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://xinyou-direction.vercel.app',
         'X-Title': '新游方向探索',
