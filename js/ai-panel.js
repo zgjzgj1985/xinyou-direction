@@ -13,6 +13,7 @@ const MODEL_LABELS = {
   'gpt-4o':      'GPT-4o',
   'claude-3.5-sonnet': 'Claude',
   'gemini-1.5-flash': 'Gemini',
+  'gemini-3.1-pro':   'Gemini 3.1 Pro',
   '豆包-pro':      '豆包',
 };
 

@@ -8,77 +8,71 @@
 
 ## 技术架构
 
-- **前端：** 原生 HTML/CSS/JS，无框架依赖
-- **实时协作：** Supabase Realtime（PostgreSQL + 实时订阅）
-- **编辑器：** CodeMirror 6（Markdown 编辑器）
-- **部署：** Vercel（静态托管）
+| 层级 | 技术选型 |
+|------|---------|
+| 前端 | 原生 HTML/CSS/JS，无框架依赖 |
+| 数据库 | Supabase（PostgreSQL） |
+| 实时同步 | Supabase Realtime |
+| 编辑器 | CodeMirror 6（Markdown） |
+| AI 中转 | Vercel Serverless Function（`/api/ai-chat`） |
+| 部署 | Vercel（静态托管 + API 函数） |
 
 ## 功能特性
 
-- Markdown 文档的阅读与编辑
-- 多人同时编辑，内容实时同步
-- 左侧文档目录导航，支持按标题筛选
-- 自动保存（编辑停止 2 秒后）
-- 响应式设计，支持移动端
+- **协作文档编辑** — 多人同时编辑，内容实时同步
+- **AI 助手** — 集成 AI 对话能力，支持发送文档、生成标签、总结全文、数值分析
+- **Markdown 预览** — 编辑器左侧写 Markdown，右侧实时预览
+- **自动保存** — 编辑停止 2 秒后自动保存
+- **文档目录** — 左侧导航栏，支持按标题筛选
+- **响应式设计** — 支持桌面端与移动端
 
 ## 文件结构
 
 ```
 d:/新游方向/
-├── index.html          # 主页面（协作文档编辑器）
-├── import-docs.html    # 一次性工具：将本地 md 文档导入 Supabase
+├── index.html              # 主页面
 ├── css/
-│   └── style.css       # iOS 风格样式
+│   ├── style.css           # 主样式（iOS 风格）
+│   └── ai-panel.css        # AI 面板样式
 ├── js/
-│   ├── main.js         # 主逻辑（文档列表、编辑器、实时同步）
-│   ├── supabase.js     # Supabase 客户端配置
-│   └── cm-editor.bundle.mjs  # CodeMirror 6 编辑器（构建产物）
-├── vercel.json         # Vercel 配置
-├── package.json        # npm 依赖（CodeMirror 包 + esbuild）
-└── .gitignore
+│   ├── main.js             # 主逻辑（文档列表、编辑器、实时同步）
+│   ├── supabase.js         # Supabase 客户端
+│   ├── ai-panel.js         # AI 对话面板逻辑
+│   └── cm-editor.bundle.mjs # CodeMirror 6 编辑器（构建产物）
+├── api/
+│   └── ai-chat.ts          # AI 中转 API（Vercel Serverless）
+├── vercel.json             # Vercel 配置
+└── package.json             # npm 依赖
 ```
-
-## 环境变量
-
-| 变量 | 说明 |
-|------|------|
-| `VERCEL_TOKEN` | Vercel API Token（运行 deploy.ps1 时需要） |
 
 ## 常用操作
 
 ### 本地运行
 
-直接用浏览器打开 `index.html` 即可。Supabase 连接信息已内置在 `js/supabase.js` 中。
+直接在浏览器中打开 `index.html` 即可，Supabase 连接信息已内置。
 
-### 构建编辑器包（仅修改了 CodeMirror 源码时需要）
+### 修改 CodeMirror 编辑器
+
+编辑器源码在 `js/cm-editor.mjs`，修改后执行构建：
 
 ```bash
 npm run build:editor
 ```
 
-### 部署到 Vercel
-
-项目已在 Vercel 上配置完成。推送代码到 GitHub 后，Vercel 会自动触发重新部署。
-
-手动部署（需要设置 `VERCEL_TOKEN` 环境变量）：
-
-```powershell
-.\deploy.ps1
-```
-
-### 导入本地 Markdown 文档到数据库
-
-1. 确保 `js/supabase.js` 中的连接信息正确
-2. 浏览器打开 `import-docs.html`
-3. 点击「开始导入」
-
 ### 修改 Supabase 连接信息
 
 编辑 `js/supabase.js` 中的两处：
+
 - 项目 URL（第 8 行）
 - anon public key（第 9 行）
 
 获取位置：Supabase Dashboard → Project Settings → API
+
+### 修改 AI 模型
+
+AI 模型由后端环境变量 `LLM_MODEL` 控制，修改 `api/ai-chat.ts` 中的默认值或直接在 Vercel 环境变量中设置。
+
+当前支持的模型标识：`gemini-3.1-pro`、`gpt-4o-mini`、`claude-3.5-sonnet` 等（取决于中转 API）。
 
 ## 数据库表结构
 
@@ -92,4 +86,12 @@ npm run build:editor
 | `created_at` | timestamptz | 创建时间 |
 | `updated_at` | timestamptz | 最后修改时间 |
 
-Row Level Security (RLS) 已禁用（匿名访问）。
+Row Level Security (RLS) 已禁用（允许匿名访问）。
+
+## 环境变量（Vercel）
+
+| 变量 | 说明 |
+|------|------|
+| `LLM_API_KEY` | AI 中转 API 的密钥 |
+| `LLM_API_URL` | AI 中转 API 地址（默认 `https://openrouter.ai/api/v1/chat/completions`） |
+| `LLM_MODEL` | 使用的模型 ID（如 `gemini-3.1-pro`） |
