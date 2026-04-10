@@ -55,7 +55,7 @@ body {
 }
 
 .header-content {
-    max-width: 1200px;
+    max-width: 1440px;
     margin: 0 auto;
 }
 
@@ -78,7 +78,7 @@ body {
 .layout {
     display: flex;
     gap: 0;
-    max-width: 1200px;
+    max-width: 1440px;
     margin: 0 auto;
     padding: 0 0 40px;
     /* stretch：主内容区可占满视口剩余高度，编辑模式内 height:100% 才能生效 */
@@ -106,7 +106,7 @@ body {
 
 /* ── Sidebar ── */
 .side-nav {
-    width: 272px;
+    width: 220px;
     flex-shrink: 0;
     position: sticky;
     top: 90px;
@@ -519,7 +519,7 @@ body {
     color: var(--ios-text-tertiary);
     font-size: 0.8125rem;
     border-top: 0.5px solid var(--ios-border);
-    max-width: 1200px;
+    max-width: 1440px;
     margin: 0 auto;
 }
 
