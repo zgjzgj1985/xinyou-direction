@@ -50,6 +50,7 @@ async function loadDocuments() {
 
   if (error) throw error;
   documents = data || [];
+  window._documents = documents;
   renderDocList();
 }
 
@@ -306,6 +307,7 @@ async function createDocument(title) {
   }
 
   documents.unshift(data);
+  window._documents = documents;
   renderDocList();
   await openDocument(data.id);
   showToast('文档已创建');
@@ -325,7 +327,8 @@ async function deleteDocument(id) {
     return;
   }
 
-  documents = documents.filter(d => d.id !== id);
+  documents.splice(idx, 1);
+  window._documents.splice(idx, 1);
   renderDocList();
   if (currentDocId === id) {
     if (documents.length > 0) {
