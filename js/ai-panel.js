@@ -2,8 +2,6 @@
  * AI 对话面板
  * — 与当前文档关联，支持快捷操作和一键插入文档，流式输出
  */
-import { supabase } from './supabase.js';
-
 // ── 常量 ─────────────────────────────────────────────────────────────────────
 const API_BASE = '';
 const API_URL  = '/api/ai-chat';
@@ -67,6 +65,28 @@ function handleInputKey(e) {
 // ── 流式调用 AI ─────────────────────────────────────────────────────────────
 let _abortController = null;
 
+/** 判断是否是网络层可重试错误 */
+function isNetworkRetryableError(err) {
+  const msg = err?.message || '';
+  return (
+    msg.includes('QUIC') ||
+    msg.includes('net::ERR_') ||
+    msg.includes('network error') ||
+    err.name === 'TypeError'
+  );
+}
+
+/** 通用 fetch 包装：网络错误时自动重试一次 */
+async function fetchWithRetry(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    if (!isNetworkRetryableError(err)) throw err;
+    await new Promise(r => setTimeout(r, 500));
+    return fetch(url, options);
+  }
+}
+
 async function generateAIStream(messages, opts = {}) {
   const { docTitle = '', docContent = '', onDone } = opts;
   isGenerating = true;
@@ -94,7 +114,7 @@ async function generateAIStream(messages, opts = {}) {
   }
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetchWithRetry(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages, docTitle, docContent }),
@@ -125,26 +145,23 @@ async function generateAIStream(messages, opts = {}) {
       buffer = lines.pop() || '';
 
       for (const raw of lines) {
-        if (!raw.startsWith('data: ')) continue;
-        const data = raw.slice(6).trim();
+        const line = raw.replace(/\r$/, '').trim();
+        if (!line.startsWith('data:')) continue;
+        const data = line.startsWith('data: ')
+          ? line.slice(6).trim()
+          : line.slice(5).trim();
         if (!data) continue;
 
-        // SSE event 格式: event: xxx\ndata: {...}\n\n
-        // 简单兼容：如果有换行说明是 event+data 混在一起
         let event = 'message';
         let jsonStr = data;
         if (data.includes('\n')) {
           const parts = data.split('\n');
-          for (let i = 0; i < parts.length; i++) {
-            const p = parts[i].trim();
-            if (!p) continue;
-            if (p.startsWith('event:')) {
-              event = p.slice(6).trim();
-            } else if (p.startsWith('data:')) {
-              jsonStr = p.slice(5).trim();
-            } else {
-              jsonStr = p;
-            }
+          for (const p of parts) {
+            const trimmed = p.trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
+            else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
+            else jsonStr = trimmed;
           }
         }
 
@@ -164,6 +181,11 @@ async function generateAIStream(messages, opts = {}) {
             return;
           }
 
+          if (event === 'thinking' && parsed.delta) {
+            // 思考过程不显示
+            continue;
+          }
+
           if (parsed.delta) {
             msgText += parsed.delta;
             msgPending = true;
@@ -175,7 +197,6 @@ async function generateAIStream(messages, opts = {}) {
       }
     }
 
-    // 意外结束
     if (msgPending) {
       chatHistory.push({ role: 'assistant', content: msgText });
     }
@@ -245,7 +266,7 @@ async function summarizeDoc() {
   let msgText = '';
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetchWithRetry(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: tempHistory, docTitle: doc.title, docContent: '' }),
@@ -293,7 +314,8 @@ async function summarizeDoc() {
 
         try {
           const parsed = JSON.parse(jsonStr);
-          if (event === 'done') {
+          if (event === 'done' || parsed.done) {
+            if (!msgText && typeof parsed.full === 'string') msgText = parsed.full;
             chatHistory.push({ role: 'assistant', content: msgText });
             return;
           }
