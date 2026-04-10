@@ -24657,6 +24657,11 @@ function createMarkdownEditor(container, initialText, hooks) {
     getValue() {
       return view.state.doc.toString();
     },
+    setValue(content2) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: content2 }
+      });
+    },
     destroy() {
       view.destroy();
     }

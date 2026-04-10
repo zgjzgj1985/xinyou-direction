@@ -102,6 +102,11 @@ export function createMarkdownEditor(container, initialText, hooks) {
 
     return {
         getValue() { return view.state.doc.toString(); },
+        setValue(content) {
+            view.dispatch({
+                changes: { from: 0, to: view.state.doc.length, insert: content }
+            });
+        },
         destroy() { view.destroy(); },
     };
 }
