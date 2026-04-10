@@ -368,11 +368,11 @@
 .ai-stop-btn {
   padding: 9px 12px;
   border-radius: 12px;
-  background: var(--ios-red);
-  color: #fff;
-  border: none;
+  background: var(--ios-bg);
+  color: var(--ios-text-secondary);
+  border: 0.5px solid var(--ios-border-strong);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   font-family: inherit;
   flex-shrink: 0;
@@ -380,15 +380,16 @@
   align-items: center;
   justify-content: center;
   height: 36px;
-  transition: background 0.15s, transform 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .ai-stop-btn:hover {
-  background: #e6352b;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--ios-text-primary);
 }
 
 .ai-stop-btn:active {
-  transform: scale(0.94);
+  background: rgba(0, 0, 0, 0.1);
 }
 
 /* ── Toast（复用已有样式，此处仅作补充）── */
