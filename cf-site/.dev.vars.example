@@ -1,0 +1,10 @@
+# 与 Vercel 环境变量对齐（见 api/ai-chat.ts）
+# LLM_API_URL 可不配：未配时与海外版相同，默认 OpenRouter
+# LLM_API_KEY=sk-your-key-here
+# LLM_MODEL=[次]gemini-3-pro-preview-thinking
+# LLM_API_URL=https://us.novaiapi.com/v1/chat/completions
+
+LLM_API_KEY=sk-your-key-here
+LLM_MODEL=
+# 留空则与 Vercel 一致，使用 https://openrouter.ai/api/v1/chat/completions
+LLM_API_URL=

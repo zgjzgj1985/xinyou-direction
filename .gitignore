@@ -3,3 +3,9 @@
 
 # local deploy script (may contain secrets)
 deploy.ps1
+
+# Cloudflare Workers 构建产物（不要提交）
+cf-site/dist/
+
+# 本地环境变量（包含 secrets）
+cf-site/.dev.vars
