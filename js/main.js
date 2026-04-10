@@ -28,7 +28,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await loadDocuments();
     bindGlobalEvents();
-    initAIPanel(); // 初始化 AI 对话面板
+    initAIPanel();
+    // 静默预热 AI 函数，防止冷启动超时（仅在浏览器空闲时触发）
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => warmupAI(), { timeout: 3000 });
+    } else {
+      setTimeout(warmupAI, 2000);
+    }
     // 默认加载第一个文档
     if (documents.length > 0) {
       await openDocument(documents[0].id);
@@ -40,6 +46,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     showError('页面加载失败：' + err.message);
   }
 });
+
+// 预热 AI 函数（静默调用，不阻塞页面渲染）
+async function warmupAI() {
+  try {
+    await fetch('/api/warmup', {
+      method: 'GET',
+      cache: 'no-store',
+    });
+  } catch (_) {
+    // 静默失败，不影响用户
+  }
+}
 
 // ── 加载文档列表 ─────────────────────────────────────────────────────────────
 async function loadDocuments() {

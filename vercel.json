@@ -2,6 +2,12 @@
   "framework": null,
   "buildCommand": null,
   "outputDirectory": ".",
+  "crons": [
+    {
+      "path": "/api/warmup",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/$1" }
   ],

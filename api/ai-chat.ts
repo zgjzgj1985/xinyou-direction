@@ -4,6 +4,15 @@ const LLM_API_KEY = process.env.LLM_API_KEY || '';
 const LLM_API_URL = process.env.LLM_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS 预检
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.status(204).send(null);
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: '只支持 POST 请求' });
   }
@@ -17,6 +26,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'messages 格式错误' });
+  }
+
+  const requestBody: Record<string, unknown> = {
+    messages,
+    stream: true,
+  };
+  if (modelId) {
+    requestBody.model = modelId;
   }
 
   // 允许跨域 & SSE
@@ -38,11 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'HTTP-Referer': 'https://xinyou-direction.vercel.app',
         'X-Title': 'NewGameDirection',
       },
-      body: JSON.stringify({
-        model: modelId,
-        messages,
-        stream: true,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
