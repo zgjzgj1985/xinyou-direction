@@ -132,6 +132,8 @@ async function generateAIStream(messages, opts = {}) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    /** 服务端每帧先发 event: 再发 data:，必须配对，否则 done/error 永远对不上 */
+    let pendingEvent = 'message';
 
     removeTyping();
     ensureMsgDiv();
@@ -146,20 +148,30 @@ async function generateAIStream(messages, opts = {}) {
 
       for (const raw of lines) {
         const line = raw.replace(/\r$/, '').trim();
+        if (line === '') continue;
+
+        const evMatch = line.match(/^event:\s*(.*)$/);
+        if (evMatch) {
+          pendingEvent = evMatch[1].trim();
+          continue;
+        }
+
         if (!line.startsWith('data:')) continue;
         const data = line.startsWith('data: ')
           ? line.slice(6).trim()
           : line.slice(5).trim();
         if (!data) continue;
 
-        let event = 'message';
+        const event = pendingEvent;
+        pendingEvent = 'message';
+
         let jsonStr = data;
         if (data.includes('\n')) {
           const parts = data.split('\n');
           for (const p of parts) {
             const trimmed = p.trim();
             if (!trimmed) continue;
-            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
+            if (trimmed.startsWith('event:')) { /* nested, ignore */ }
             else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
             else jsonStr = trimmed;
           }
@@ -174,15 +186,16 @@ async function generateAIStream(messages, opts = {}) {
             return;
           }
 
-          if (event === 'done') {
+          if (event === 'done' || parsed.done) {
             msgPending = false;
+            if (!msgText && typeof parsed.full === 'string') msgText = parsed.full;
             chatHistory.push({ role: 'assistant', content: msgText });
+            flushMsg();
             onDone?.();
             return;
           }
 
           if (event === 'thinking' && parsed.delta) {
-            // 思考过程不显示
             continue;
           }
 
@@ -283,6 +296,7 @@ async function summarizeDoc() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let pendingEvent = 'message';
 
     const msgDiv = addAssistantMessage('');
 
@@ -295,19 +309,31 @@ async function summarizeDoc() {
       buffer = lines.pop() || '';
 
       for (const raw of lines) {
-        if (!raw.startsWith('data: ')) continue;
-        const data = raw.slice(6).trim();
+        const line = raw.replace(/\r$/, '').trim();
+        if (line === '') continue;
+
+        const evMatch = line.match(/^event:\s*(.*)$/);
+        if (evMatch) {
+          pendingEvent = evMatch[1].trim();
+          continue;
+        }
+
+        if (!line.startsWith('data:')) continue;
+        const data = line.startsWith('data: ')
+          ? line.slice(6).trim()
+          : line.slice(5).trim();
         if (!data) continue;
 
-        let event = 'message';
+        const event = pendingEvent;
+        pendingEvent = 'message';
+
         let jsonStr = data;
         if (data.includes('\n')) {
           const parts = data.split('\n');
           for (const p of parts) {
             const trimmed = p.trim();
             if (!trimmed) continue;
-            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
-            else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
+            if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
             else jsonStr = trimmed;
           }
         }
@@ -318,6 +344,9 @@ async function summarizeDoc() {
             if (!msgText && typeof parsed.full === 'string') msgText = parsed.full;
             chatHistory.push({ role: 'assistant', content: msgText });
             return;
+          }
+          if (event === 'thinking' && parsed.delta) {
+            continue;
           }
           if (parsed.delta) {
             msgText += parsed.delta;

@@ -11,15 +11,6 @@ function extractDelta(parsed: unknown): string {
   return p?.choices?.[0]?.delta?.content || '';
 }
 
-/** 判断是否是网络层可重试错误 */
-function isNetworkRetryableError(msg: string): boolean {
-  return (
-    msg.includes('QUIC') ||
-    msg.includes('net::ERR_') ||
-    msg.includes('network error')
-  );
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── CORS 预检 ──────────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
