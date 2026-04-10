@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导入文档到 Supabase</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f2f2f7; padding: 40px 20px; }
+        .card { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 32px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h1 { font-size: 1.5rem; color: #000; margin-bottom: 8px; }
+        p { color: #8e8e93; font-size: 0.9rem; margin-bottom: 24px; }
+        .log { background: #1c1c1e; color: #e5e5ea; padding: 16px; border-radius: 10px; font-family: monospace; font-size: 0.8rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 20px; }
+        .btn { display: inline-block; background: #007aff; color: #fff; border: none; padding: 12px 24px; border-radius: 10px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+        .btn:disabled { background: #8e8e93; cursor: not-allowed; }
+        .ok { color: #32d74b; }
+        .err { color: #ff453a; }
+        .info { color: #ff9f0a; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>一键导入文档</h1>
+    <p>将 5 篇现有 Markdown 文档导入到 Supabase 数据库。完成后自动跳转到主站。</p>
+    <div class="log" id="log">准备就绪，点击下方按钮开始导入...\n</div>
+    <button class="btn" id="startBtn" onclick="startImport()">开始导入</button>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const supabase = createClient(
+  'https://ltldrqazzgljweblrnpt.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0bGRycWF6emdsandalZWxybnB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcwMzA4NTYsImV4cCI6MjA2MjYwNjg1Nn0.sb_publishable_0HMYW6nQe5sdKg5AAk7xhw_ZRORoP1c'
+);
+
+const DOCS = [
+  {
+    title: '洛克王国：世界介绍',
+    filename: '洛克王国：世界介绍.md'
+  },
+  {
+    title: '战斗分析报告（一）',
+    filename: '梦幻西游与洛克王国战斗分析报告1.md'
+  },
+  {
+    title: '战斗分析报告（二）',
+    filename: '梦幻西游与洛克王国战斗分析报告2.md'
+  },
+  {
+    title: '卡牌回合游戏设计原则',
+    filename: '卡牌回合游戏设计原则.md'
+  },
+  {
+    title: '战斗系统白皮书',
+    filename: '次世代轻策略回合制MMO战斗系统白皮书.md'
+  }
+];
+
+const logEl = document.getElementById('log');
+const startBtn = document.getElementById('startBtn');
+
+function log(msg, type = 'info') {
+    const span = document.createElement('span');
+    span.className = type;
+    span.textContent = msg;
+    logEl.appendChild(span);
+    logEl.appendChild(document.createTextNode('\n'));
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+window.startImport = async function () {
+    startBtn.disabled = true;
+    startBtn.textContent = '导入中...';
+    log('开始导入 ' + DOCS.length + ' 篇文档...\n');
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const doc of DOCS) {
+        log('导入: ' + doc.title + '...', 'info');
+
+        try {
+            // 先查重：同标题已存在则跳过
+            const { data: existing } = await supabase
+                .from('documents')
+                .select('id')
+                .eq('title', doc.title)
+                .limit(1);
+
+            if (existing && existing.length > 0) {
+                log('  已存在，跳过: ' + doc.title, 'info');
+                skipped++;
+                continue;
+            }
+
+            // 插入文档
+            const { error } = await supabase
+                .from('documents')
+                .insert([{
+                    title: doc.title,
+                    content: '# ' + doc.title + '\n\n（内容请在编辑器中查看或手动复制）\n'
+                }]);
+
+            if (error) {
+                log('  失败: ' + error.message, 'err');
+            } else {
+                log('  成功 ✓', 'ok');
+                imported++;
+            }
+        } catch (e) {
+            log('  异常: ' + e.message, 'err');
+        }
+    }
+
+    log('\n导入完成！成功 ' + imported + ' 篇，跳过 ' + skipped + ' 篇（已存在）', 'ok');
+    log('\n正在跳转...', 'info');
+    setTimeout(() => {
+        window.location.href = 'index.html';
+    }, 2000);
+};
+</script>
+</body>
+</html>
