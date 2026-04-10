@@ -163,7 +163,6 @@ async function generateAIStream(messages, opts = {}) {
             msgPending = false;
             chatHistory.push({ role: 'assistant', content: msgText });
             onDone?.();
-            setTimeout(() => appendInsertBtns(), 100);
             return;
           }
 
@@ -345,26 +344,6 @@ async function generateTags() {
 function renderTagsResult(msgDiv, tagsText) {
   if (!msgDiv || !tagsText) return;
   msgDiv.innerHTML = parseAIResponse('推荐标签：' + tagsText);
-
-  const wrap = document.createElement('div');
-  wrap.className = 'ai-insert-wrap';
-
-  const insertBtn = document.createElement('button');
-  insertBtn.className = 'ai-insert-btn';
-  insertBtn.textContent = '📎 追加到文档';
-  insertBtn.addEventListener('click', () => insertTagsToDoc(tagsText));
-  wrap.appendChild(insertBtn);
-
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'ai-insert-btn';
-  copyBtn.textContent = '📋 复制';
-  copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(tagsText);
-    showToast('已复制到剪贴板');
-  });
-  wrap.appendChild(copyBtn);
-
-  msgDiv.appendChild(wrap);
   scrollToBottom();
 }
 
@@ -437,7 +416,6 @@ async function summarizeDoc() {
           const parsed = JSON.parse(jsonStr);
           if (event === 'done') {
             chatHistory.push({ role: 'assistant', content: msgText });
-            setTimeout(() => appendInsertBtns(), 100);
             return;
           }
           if (parsed.delta) {
@@ -450,7 +428,6 @@ async function summarizeDoc() {
     }
 
     chatHistory.push({ role: 'assistant', content: msgText });
-    setTimeout(() => appendInsertBtns(), 100);
 
   } catch (err) {
     removeTyping();
@@ -536,7 +513,6 @@ async function analyzeDoc() {
           const parsed = JSON.parse(jsonStr);
           if (event === 'done') {
             chatHistory.push({ role: 'assistant', content: msgText });
-            setTimeout(() => appendInsertBtns(), 100);
             return;
           }
           if (parsed.delta) {
@@ -549,7 +525,6 @@ async function analyzeDoc() {
     }
 
     chatHistory.push({ role: 'assistant', content: msgText });
-    setTimeout(() => appendInsertBtns(), 100);
 
   } catch (err) {
     removeTyping();
@@ -564,37 +539,6 @@ async function analyzeDoc() {
     setQuickBtnsDisabled(false);
     updateStopBtn(false);
   }
-}
-
-// ── 插入文档 ─────────────────────────────────────────────────────────────────
-
-function insertTagsToDoc(tagsText) {
-  const tags = tagsText.split(/[,，、]/).map(t => t.trim()).filter(Boolean);
-  if (!tags.length) return;
-
-  const tagLine = `\n\n---\n**AI 推荐标签**：${tags.join('、')}\n`;
-  appendToCurrentDoc(tagLine);
-  showToast('标签已添加到文档末尾');
-}
-
-function insertToDocEnd(content) {
-  appendToCurrentDoc(`\n\n---\n## AI 分析结果\n\n${content}`);
-  showToast('内容已插入到文档末尾');
-}
-
-function appendToCurrentDoc(text) {
-  if (window._cmView) {
-    const current = window._cmView.getValue?.() || '';
-    window._cmView.setValue?.(current + text);
-  } else {
-    const ta = document.getElementById('fallbackEditor');
-    if (ta) ta.value += text;
-  }
-  scheduleAutoSave(text);
-}
-
-function scheduleAutoSave(extraText) {
-  window.dispatchEvent(new CustomEvent('ai-content-append', { detail: { text: extraText } }));
 }
 
 // ── 渲染 ─────────────────────────────────────────────────────────────────────
@@ -660,33 +604,7 @@ function removeTyping() {
 }
 
 function appendInsertBtns() {
-  const lastMsg = document.querySelector('.ai-msg:last-child');
-  if (!lastMsg || lastMsg.classList.contains('ai-msg-user')) return;
-  if (lastMsg.querySelector('.ai-insert-wrap')) return;
-
-  const wrap = document.createElement('div');
-  wrap.className = 'ai-insert-wrap';
-
-  const insertBtn = document.createElement('button');
-  insertBtn.className = 'ai-insert-btn';
-  insertBtn.textContent = '📎 插入到文档末尾';
-  insertBtn.addEventListener('click', () => {
-    const content = getMsgPureText(lastMsg);
-    insertToDocEnd(content);
-  });
-  wrap.appendChild(insertBtn);
-
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'ai-insert-btn';
-  copyBtn.textContent = '📋 复制全部';
-  copyBtn.addEventListener('click', () => {
-    const content = getMsgPureText(lastMsg);
-    navigator.clipboard.writeText(content);
-    showToast('已复制到剪贴板');
-  });
-  wrap.appendChild(copyBtn);
-
-  lastMsg.appendChild(wrap);
+  // 已移除
 }
 
 // ── 工具函数 ─────────────────────────────────────────────────────────────────
@@ -757,12 +675,8 @@ function showToast(msg) {
 }
 
 function getMsgPureText(msgEl) {
-  const wrap = msgEl.querySelector('.ai-insert-wrap');
-  let text = msgEl.textContent || '';
-  if (wrap) {
-    text = text.replace(wrap.textContent || '', '').trim();
-  }
-  return text;
+  // 已移除按钮功能，此函数保留备用
+  return msgEl.textContent || '';
 }
 
 // 导出
