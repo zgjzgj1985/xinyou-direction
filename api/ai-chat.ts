@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const LLM_API_KEY = process.env.LLM_API_KEY || '';
+const LLM_API_KEY = (process.env.LLM_API_KEY || '').replace(/^["']|["']$/g, '').trim();
 const LLM_API_URL = process.env.LLM_API_URL || 'https://openrouter.ai/api/v1/chat/completions';
 
 /** OpenAI 兼容流式 chunk → 文本（含 Gemini 多段 content） */
