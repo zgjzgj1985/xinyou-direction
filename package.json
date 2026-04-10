@@ -12,9 +12,11 @@
     "@codemirror/language-data": "^6.5.2",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",
-    "@lezer/highlight": "^1.2.3"
+    "@lezer/highlight": "^1.2.3",
+    "@vercel/node": "^5.7.2"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "esbuild": "^0.28.0"
   }
 }
