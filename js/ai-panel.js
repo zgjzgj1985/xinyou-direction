@@ -35,9 +35,7 @@ function bindEvents() {
   document.getElementById('aiInput')?.addEventListener('keydown', handleInputKey);
   document.getElementById('aiInput')?.addEventListener('input', autoResizeTextarea);
   document.getElementById('aiSendDoc')?.addEventListener('click', sendCurrentDoc);
-  document.getElementById('aiGenTags')?.addEventListener('click', generateTags);
   document.getElementById('aiSummarize')?.addEventListener('click', summarizeDoc);
-  document.getElementById('aiAnalyze')?.addEventListener('click', analyzeDoc);
   document.getElementById('aiPanelClose')?.addEventListener('click', closeAIPanel);
   document.getElementById('aiPanelOpenBtn')?.addEventListener('click', openAIPanel);
   document.getElementById('aiStopBtn')?.addEventListener('click', stopGenerating);
@@ -228,125 +226,6 @@ async function sendCurrentDoc() {
   await generateAIStream(chatHistory, { docTitle: doc.title, docContent: doc.content });
 }
 
-/** 生成标签 */
-async function generateTags() {
-  const doc = getCurrentDocument();
-  if (!doc) { showToast('请先打开一个文档'); return; }
-
-  const systemPrompt = `你是一个游戏设计文档标签生成专家。请分析以下文档，提取最核心的标签。
-
-要求：
-- 返回 3-5 个标签
-- 每个标签 2-4 个字
-- 只返回标签本身，用中文逗号分隔，不要任何解释
-- 标签参考：战斗系统、数值平衡、回合制、技能设计、宠物系统、角色设计、战斗公式、速度机制、装备系统、Boss设计、伤害计算、Buff系统、怒气机制
-
-示例返回格式：
-战斗系统, 回合制, 速度机制`;
-
-  const tempHistory = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: `文档：「${doc.title}」\n\n${doc.content.slice(0, 2000)}` }
-  ];
-
-  isGenerating = true;
-  _abortController = new AbortController();
-  setQuickBtnsDisabled(true);
-  updateStopBtn(true);
-  showTyping();
-
-  let msgDiv = null;
-  let msgText = '';
-  let tagsResult = '';
-
-  try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: tempHistory, docTitle: doc.title, docContent: '' }),
-      signal: _abortController.signal,
-    });
-
-    removeTyping();
-
-    if (!res.ok) {
-      addAssistantMessage(`标签生成失败（${res.status}），请稍后重试。`);
-      return;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    msgDiv = addAssistantMessage('');
-    scrollToBottom();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const raw of lines) {
-        if (!raw.startsWith('data: ')) continue;
-        const data = raw.slice(6).trim();
-        if (!data) continue;
-
-        let event = 'message';
-        let jsonStr = data;
-        if (data.includes('\n')) {
-          const parts = data.split('\n');
-          for (const p of parts) {
-            const trimmed = p.trim();
-            if (!trimmed) continue;
-            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
-            else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
-            else jsonStr = trimmed;
-          }
-        }
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          if (event === 'done') {
-            tagsResult = msgText;
-            renderTagsResult(msgDiv, tagsResult);
-            return;
-          }
-          if (parsed.delta) {
-            msgText += parsed.delta;
-            msgDiv.innerHTML = parseAIResponse('推荐标签：' + msgText);
-            scrollToBottom();
-          }
-        } catch { /* ignore */ }
-      }
-    }
-
-    tagsResult = msgText;
-    renderTagsResult(msgDiv, tagsResult);
-
-  } catch (err) {
-    removeTyping();
-    if (err.name !== 'AbortError') {
-      addAssistantMessage('标签生成失败：' + err.message);
-    } else if (msgText) {
-      chatHistory.push({ role: 'assistant', content: msgText });
-    }
-  } finally {
-    isGenerating = false;
-    _abortController = null;
-    setQuickBtnsDisabled(false);
-    updateStopBtn(false);
-  }
-}
-
-function renderTagsResult(msgDiv, tagsText) {
-  if (!msgDiv || !tagsText) return;
-  msgDiv.innerHTML = parseAIResponse('推荐标签：' + tagsText);
-  scrollToBottom();
-}
-
 /** 总结全文 */
 async function summarizeDoc() {
   const doc = getCurrentDocument();
@@ -354,7 +233,7 @@ async function summarizeDoc() {
 
   const tempHistory = [
     { role: 'system', content: '你是一个游戏设计文档分析助手，擅长提炼关键信息。请详细展开分析，每个要点都给出具体解释和说明。' },
-    { role: 'user', content: `请详细总结以下文档的核心内容，包括：核心玩法、主要机制、设计亮点、潜在问题等。请展开说明，不要只列要点。\n\n文档：「${doc.title}」\n\n${doc.content.slice(0, 3000)}` }
+    { role: 'user', content: `请详细总结以下文档的核心内容，包括：核心玩法、主要机制、设计亮点、潜在问题等。请展开说明，不要只列要点。\n\n文档：「${doc.title}」\n\n${doc.content}` }
   ];
 
   isGenerating = true;
@@ -444,103 +323,6 @@ async function summarizeDoc() {
   }
 }
 
-/** 分析文档（数值平衡 / 设计建议等） */
-async function analyzeDoc() {
-  const doc = getCurrentDocument();
-  if (!doc) { showToast('请先打开一个文档'); return; }
-
-  const tempHistory = [
-    { role: 'system', content: '你是一个资深游戏数值策划，专注于回合制游戏的战斗系统设计。善于从专业角度分析数值平衡、战斗机制设计，并给出详细改进建议。请深入展开，不要简略。' },
-    { role: 'user', content: `请详细分析这份游戏设计文档，从以下角度给出专业意见，每个角度都要详细展开说明：\n1. 数值平衡是否合理，举例说明\n2. 战斗机制是否有改进空间，具体建议\n3. 有哪些设计亮点\n4. 可能存在的平衡风险\n5. 其他值得关注的设计问题\n\n文档：「${doc.title}」\n\n${doc.content.slice(0, 3000)}` }
-  ];
-
-  isGenerating = true;
-  _abortController = new AbortController();
-  setQuickBtnsDisabled(true);
-  updateStopBtn(true);
-  showTyping();
-
-  let msgText = '';
-
-  try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: tempHistory, docTitle: doc.title, docContent: '' }),
-      signal: _abortController.signal,
-    });
-
-    removeTyping();
-
-    if (!res.ok) {
-      addAssistantMessage(`分析失败（${res.status}），请稍后重试。`);
-      return;
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    const msgDiv = addAssistantMessage('');
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const raw of lines) {
-        if (!raw.startsWith('data: ')) continue;
-        const data = raw.slice(6).trim();
-        if (!data) continue;
-
-        let event = 'message';
-        let jsonStr = data;
-        if (data.includes('\n')) {
-          const parts = data.split('\n');
-          for (const p of parts) {
-            const trimmed = p.trim();
-            if (!trimmed) continue;
-            if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
-            else if (trimmed.startsWith('data:')) jsonStr = trimmed.slice(5).trim();
-            else jsonStr = trimmed;
-          }
-        }
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          if (event === 'done') {
-            chatHistory.push({ role: 'assistant', content: msgText });
-            return;
-          }
-          if (parsed.delta) {
-            msgText += parsed.delta;
-            msgDiv.innerHTML = parseAIResponse(msgText);
-            scrollToBottom();
-          }
-        } catch { /* ignore */ }
-      }
-    }
-
-    chatHistory.push({ role: 'assistant', content: msgText });
-
-  } catch (err) {
-    removeTyping();
-    if (err.name !== 'AbortError') {
-      addAssistantMessage('分析失败：' + err.message);
-    } else if (msgText) {
-      chatHistory.push({ role: 'assistant', content: msgText });
-    }
-  } finally {
-    isGenerating = false;
-    _abortController = null;
-    setQuickBtnsDisabled(false);
-    updateStopBtn(false);
-  }
-}
-
 // ── 渲染 ─────────────────────────────────────────────────────────────────────
 
 function renderEmptyHint() {
@@ -601,10 +383,6 @@ function showTyping() {
 
 function removeTyping() {
   document.getElementById('aiTyping')?.remove();
-}
-
-function appendInsertBtns() {
-  // 已移除
 }
 
 // ── 工具函数 ─────────────────────────────────────────────────────────────────
