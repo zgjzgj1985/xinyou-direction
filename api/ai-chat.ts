@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://xin-you-fang-xiang.vercel.app',
+        'HTTP-Referer': 'https://xinyou-direction.vercel.app',
         'X-Title': '新游方向探索',
       },
       body: JSON.stringify({

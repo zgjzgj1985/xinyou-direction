@@ -5,8 +5,8 @@
 import { supabase } from './supabase.js';
 
 // ── 常量 ─────────────────────────────────────────────────────────────────────
-const API_BASE = 'https://xin-you-fang-xiang.vercel.app';
-const API_URL  = API_BASE + '/api/ai-chat';
+const API_BASE = '';   // 部署在同一域名下，使用相对路径
+const API_URL  = '/api/ai-chat';
 
 const MODEL_LABELS = {
   'gpt-4o-mini': 'GPT-4o mini',
