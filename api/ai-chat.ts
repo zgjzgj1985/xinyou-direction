@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Authorization': `Bearer ${LLM_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://xinyou-direction.vercel.app',
-        'X-Title': '新游方向探索',
+        'X-Title': 'NewGameDirection',
       },
       body: JSON.stringify({
         model: modelId,
