@@ -8,10 +8,15 @@
  */
 import { supabase } from './supabase.js';
 import { createMarkdownEditor } from './cm-editor.bundle.mjs';
+import { initAIPanel } from './ai-panel.js';
 
 // ── 状态 ──────────────────────────────────────────────────────────────────────
 let documents = [];           // 文档列表
 let currentDocId = null;      // 当前编辑的文档 ID
+
+// 暴露给 AI 面板访问
+window._documents = documents;
+window._currentDocId = null;
 let rawMarkdown = '';         // 当前文档内容
 let cmView = null;            // CodeMirror 编辑器实例
 let autoSaveTimer = null;     // 自动保存定时器
@@ -23,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await loadDocuments();
     bindGlobalEvents();
+    initAIPanel(); // 初始化 AI 对话面板
     // 默认加载第一个文档
     if (documents.length > 0) {
       await openDocument(documents[0].id);
@@ -84,6 +90,7 @@ async function openDocument(id) {
   disposeCurrentEditor();
 
   currentDocId = id;
+  window._currentDocId = id;  // 同步给 AI 面板
   renderDocList();
 
   const doc = documents.find(d => d.id === id);
@@ -151,6 +158,7 @@ async function enterEditMode(doc) {
   document.getElementById('saveBtn')?.addEventListener('click', () => saveDocument());
 
   requestAnimationFrame(() => {
+    window._cmView = null;
     initEditor();
     subscribeRealtime();
   });
@@ -173,6 +181,7 @@ function initEditor() {
         saveDocument();
       }
     });
+    window._cmView = cmView;
   } catch (err) {
     console.error('CodeMirror 初始化失败，使用 textarea 回退', err);
     initPlainTextEditor();
@@ -398,6 +407,25 @@ function bindGlobalEvents() {
   document.getElementById('docFilter')?.addEventListener('input', ev => applyFilter(ev.target.value.trim()));
   document.getElementById('navOverlay')?.addEventListener('click', closeMobileDrawer);
   document.getElementById('drawerOpenBtn')?.addEventListener('click', openMobileDrawer);
+
+  // 监听 AI 面板追加内容事件
+  window.addEventListener('ai-content-append', (e) => {
+    if (!currentDocId) return;
+    const idx = documents.findIndex(d => d.id === currentDocId);
+    if (idx === -1) return;
+
+    // 更新文档数据
+    documents[idx].content += e.detail.text;
+    rawMarkdown = documents[idx].content;
+
+    // 同步更新编辑器内容（如果正在编辑）
+    updateEditorContent(rawMarkdown);
+    updatePreview(rawMarkdown);
+
+    // 标记未保存并延迟写入数据库
+    setEditStatus('● 未保存');
+    clearTimeout(autoSaveTimer);
+  });
 
   document.addEventListener('keydown', (e) => {
     const tag = e.target?.tagName;

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>新游方向探索</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/ai-panel.css">
 </head>
 <body>
     <header class="header">
@@ -28,9 +29,36 @@
             </div>
         </aside>
 
-        <div class="content-wrap">
-            <button type="button" class="drawer-open-btn" id="drawerOpenBtn">文档目录</button>
-            <section class="content-area" id="contentArea"></section>
+        <div class="content-plus-ai">
+            <div class="content-wrap">
+                <button type="button" class="drawer-open-btn" id="drawerOpenBtn">文档目录</button>
+                <section class="content-area" id="contentArea"></section>
+            </div>
+
+            <!-- AI 对话面板 -->
+            <aside class="ai-panel" id="aiPanel" aria-label="AI 助手">
+                <div class="ai-panel-header">
+                    <div>
+                        <span class="ai-panel-title">AI 助手</span>
+                        <span class="ai-panel-model">gpt-4o-mini</span>
+                    </div>
+                    <button type="button" class="ai-panel-close" id="aiPanelClose" title="关闭面板">×</button>
+                </div>
+                <div class="ai-panel-messages" id="aiMessages"></div>
+                <div class="ai-panel-actions">
+                    <button type="button" class="ai-quick-btn" id="aiSendDoc" title="发送当前文档给 AI">📎 发送文档</button>
+                    <button type="button" class="ai-quick-btn" id="aiGenTags" title="分析文档生成标签">🏷️ 生成标签</button>
+                    <button type="button" class="ai-quick-btn" id="aiSummarize" title="总结文档核心内容">📋 总结全文</button>
+                    <button type="button" class="ai-quick-btn" id="aiAnalyze" title="数值分析与设计建议">⚖️ 分析设计</button>
+                </div>
+                <div class="ai-panel-input">
+                    <textarea id="aiInput" placeholder="问关于文档的问题..." rows="1" spellcheck="false"></textarea>
+                    <button type="button" class="ai-send-btn" id="aiSendBtn">➤</button>
+                </div>
+            </aside>
+
+            <!-- 移动端浮动按钮 -->
+            <button type="button" class="ai-panel-open-btn" id="aiPanelOpenBtn" title="打开 AI 助手">🤖</button>
         </div>
     </main>
 
